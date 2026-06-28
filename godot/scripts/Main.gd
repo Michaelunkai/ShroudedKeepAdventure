@@ -15,18 +15,19 @@ var gate_area: Area3D
 var seal_area: Area3D
 var checkpoint_area: Area3D
 var lore_areas: Array[Area3D] = []
+var relic_areas: Array[Area3D] = []
 var enemies: Array[Node] = []
 var boss_enemy: Node = null
 var player_stamina := 100.0
 var player_max_stamina := 100.0
 
 var zones := [
-	{"name": "Blue Ravine", "goal": "Claim the ravine seal and cross the bridge.", "length": 62.0, "seal": 28.0, "gate": 55.0, "enemy_count": 3, "boss": false},
-	{"name": "Outer Wall", "goal": "Break the shadow patrol and unlock the tower road.", "length": 74.0, "seal": 38.0, "gate": 68.0, "enemy_count": 4, "boss": true},
-	{"name": "Flooded Arch", "goal": "Follow the blue water under the ruined keep.", "length": 82.0, "seal": 45.0, "gate": 76.0, "enemy_count": 5, "boss": false},
-	{"name": "Starfall Courtyard", "goal": "Survive the watchers under the violet sky.", "length": 88.0, "seal": 48.0, "gate": 82.0, "enemy_count": 5, "boss": true},
-	{"name": "Bone Library", "goal": "Find the final lore fragment in the dead archive.", "length": 92.0, "seal": 52.0, "gate": 86.0, "enemy_count": 6, "boss": false},
-	{"name": "Moon Tower", "goal": "Defeat the Moon-Crowned Keeper.", "length": 96.0, "seal": -1.0, "gate": 90.0, "enemy_count": 4, "boss": true},
+	{"name": "Blue Ravine", "goal": "Claim the ravine seal and cross the bridge.", "length": 62.0, "seal": 28.0, "gate": 55.0, "enemy_count": 3, "boss": false, "palette": "blue", "relic": true},
+	{"name": "Outer Wall", "goal": "Break the shadow patrol and unlock the tower road.", "length": 74.0, "seal": 38.0, "gate": 68.0, "enemy_count": 4, "boss": true, "palette": "stone", "relic": true},
+	{"name": "Flooded Arch", "goal": "Follow the blue water under the ruined keep.", "length": 82.0, "seal": 45.0, "gate": 76.0, "enemy_count": 5, "boss": false, "palette": "water", "relic": false},
+	{"name": "Starfall Courtyard", "goal": "Survive the watchers under the violet sky.", "length": 88.0, "seal": 48.0, "gate": 82.0, "enemy_count": 5, "boss": true, "palette": "violet", "relic": true},
+	{"name": "Bone Library", "goal": "Find the final lore fragment in the dead archive.", "length": 92.0, "seal": 52.0, "gate": 86.0, "enemy_count": 6, "boss": false, "palette": "bone", "relic": true},
+	{"name": "Moon Tower", "goal": "Defeat the Moon-Crowned Keeper.", "length": 96.0, "seal": -1.0, "gate": 90.0, "enemy_count": 4, "boss": true, "palette": "moon", "relic": false},
 ]
 
 func _ready() -> void:
@@ -36,6 +37,7 @@ func _ready() -> void:
 	GameState.health_changed.connect(_update_hud)
 	GameState.seals_changed.connect(_on_seals_changed)
 	GameState.lore_changed.connect(_on_lore_changed)
+	GameState.relics_changed.connect(_on_relics_changed)
 	GameState.reset_run()
 	_load_zone(0)
 
@@ -121,6 +123,7 @@ func _load_zone(index: int) -> void:
 		child.queue_free()
 	enemies.clear()
 	lore_areas.clear()
+	relic_areas.clear()
 	boss_enemy = null
 	var zone = zones[GameState.zone_index]
 	hud_title.text = "%s - %s" % [zone.name, zone.goal]
@@ -128,6 +131,7 @@ func _load_zone(index: int) -> void:
 	GameState.checkpoint_position = player.global_position
 	_build_zone_geometry(zone)
 	_spawn_interactables(zone)
+	_spawn_landmarks(zone)
 	_spawn_enemies(zone)
 	GameState.save_game()
 	_update_hud(GameState.health, GameState.max_health)
@@ -144,6 +148,7 @@ func _build_zone_geometry(zone: Dictionary) -> void:
 		_create_box("tower crown", Vector3(tower_x, 9.5, 4.85), Vector3(3.4, 1.0, 3.4), Color(0.015, 0.018, 0.04), Color(0.28, 0.06, 0.48))
 		_create_arch(tower_x - 1.8, 0.0)
 	_create_bridge(zone)
+	_create_zone_setpiece(zone)
 	var moon := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 2.2
@@ -169,13 +174,21 @@ func _spawn_interactables(zone: Dictionary) -> void:
 	lore.set_meta("lore_id", "%s_lore" % zone.name.to_snake_case())
 	lore.set_meta("lore_text", "Lore found: %s remembers a knight who entered before you." % zone.name)
 	lore_areas.append(lore)
+	if bool(zone.get("relic", false)):
+		var relic := _create_trigger("HealthRelic", Vector3(float(zone.length) * 0.36, 0.85, -2.65), Vector3(0.8, 0.95, 0.8), Color(0.06, 0.16, 0.2), Color(0.15, 0.9, 1.0), 1.8)
+		relic.set_meta("relic_id", "%s_relic" % zone.name.to_snake_case())
+		relic.set_meta("relic_text", "Relic claimed: your body remembers one more breath.")
+		relic_areas.append(relic)
 
 func _spawn_enemies(zone: Dictionary) -> void:
 	var count := int(zone.enemy_count)
+	var archetypes := ["blade", "archer", "sentinel", "beast"]
 	for i in range(count):
 		var enemy := CharacterBody3D.new()
 		enemy.set_script(EnemyController)
-		enemy.setup("Shadow Figure", 3 + GameState.zone_index, 1, false)
+		var archetype := archetypes[(i + GameState.zone_index) % archetypes.size()]
+		var enemy_name := {"blade": "Shadow Duelist", "archer": "Tower Archer", "sentinel": "Stone Sentinel", "beast": "Fog Beast"}.get(archetype, "Shadow Figure")
+		enemy.setup(enemy_name, 3 + GameState.zone_index, 1, false, archetype)
 		enemy.target = player
 		enemy.position = Vector3(14 + i * 8, 0, -1.6 + (i % 3) * 1.6)
 		enemy.defeated.connect(_on_enemy_defeated)
@@ -184,7 +197,8 @@ func _spawn_enemies(zone: Dictionary) -> void:
 	if bool(zone.boss):
 		var boss := CharacterBody3D.new()
 		boss.set_script(EnemyController)
-		boss.setup("Moon-Crowned Threat", 10 + GameState.zone_index * 2, 2, true)
+		var boss_name := "Ravine Warden" if GameState.zone_index == 1 else ("Starfall Sentinel" if GameState.zone_index == 3 else "Moon-Crowned Keeper")
+		boss.setup(boss_name, 10 + GameState.zone_index * 2, 2, true, "sentinel")
 		boss.target = player
 		boss.position = Vector3(float(zone.length) - 14.0, 0, 0)
 		boss.defeated.connect(_on_enemy_defeated)
@@ -208,6 +222,13 @@ func _on_player_interact(origin: Vector3) -> void:
 	for lore in lore_areas:
 		if is_instance_valid(lore) and origin.distance_to(lore.global_position) < 2.0:
 			GameState.add_lore(str(lore.get_meta("lore_id")), str(lore.get_meta("lore_text")))
+	for relic in relic_areas:
+		if is_instance_valid(relic) and origin.distance_to(relic.global_position) < 2.0:
+			var relic_id := str(relic.get_meta("relic_id"))
+			if not GameState.relics.has(relic_id):
+				GameState.add_relic(relic_id, str(relic.get_meta("relic_text")))
+				GameState.upgrade_health(1)
+				relic.queue_free()
 	if is_instance_valid(gate_area) and origin.distance_to(gate_area.global_position) < 3.0:
 		if GameState.zone_index < zones.size() - 1:
 			_load_zone(GameState.zone_index + 1)
@@ -221,7 +242,7 @@ func _on_enemy_defeated(enemy: Node) -> void:
 	_set_message("A threat dissolves into violet ash.")
 
 func _update_hud(_current := 0, _maximum := 0) -> void:
-	hud_stats.text = "Health %d/%d   Stamina %d/%d   Seals %d   Lore %d/6" % [GameState.health, GameState.max_health, int(player_stamina), int(player_max_stamina), GameState.seals, GameState.discovered_lore.size()]
+	hud_stats.text = "Health %d/%d   Stamina %d/%d   Seals %d   Relics %d   Lore %d/6" % [GameState.health, GameState.max_health, int(player_stamina), int(player_max_stamina), GameState.seals, GameState.relics.size(), GameState.discovered_lore.size()]
 	if is_instance_valid(boss_enemy):
 		boss_label.text = "%s   HP %d/%d" % [boss_enemy.display_name, boss_enemy.health, boss_enemy.max_health]
 	else:
@@ -231,6 +252,9 @@ func _on_seals_changed(_total: int) -> void:
 	_update_hud(GameState.health, GameState.max_health)
 
 func _on_lore_changed(_total: int) -> void:
+	_update_hud(GameState.health, GameState.max_health)
+
+func _on_relics_changed(_total: int) -> void:
 	_update_hud(GameState.health, GameState.max_health)
 
 func _on_player_stamina_changed(current: float, maximum: float) -> void:
@@ -255,6 +279,30 @@ func _create_bridge(zone: Dictionary) -> void:
 		_create_box("bridge post right", Vector3(rail_x, 0.9, 1.35), Vector3(0.22, 1.35, 0.22), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
 	_create_box("left bridge rail", Vector3(start_x + bridge_length * 0.5, 1.45, -1.35), Vector3(bridge_length, 0.14, 0.14), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
 	_create_box("right bridge rail", Vector3(start_x + bridge_length * 0.5, 1.45, 1.35), Vector3(bridge_length, 0.14, 0.14), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
+
+func _spawn_landmarks(zone: Dictionary) -> void:
+	var length := float(zone.length)
+	for i in range(3):
+		var x := length * (0.24 + float(i) * 0.22)
+		_create_box("fallen monolith", Vector3(x, 0.42, 2.95), Vector3(0.42, 2.2, 0.36), Color(0.045, 0.045, 0.08), Color(0.08, 0.06, 0.24)).rotation_degrees.z = 18 - i * 14
+		_create_box("moon rune band", Vector3(x, 1.25, 2.72), Vector3(0.48, 0.08, 0.12), Color(0.24, 0.1, 0.34), Color(0.75, 0.18, 1.0))
+
+func _create_zone_setpiece(zone: Dictionary) -> void:
+	var length := float(zone.length)
+	var palette := str(zone.get("palette", "blue"))
+	if palette == "water":
+		for i in range(5):
+			_create_box("flooded blue channel", Vector3(length * 0.18 + i * 8.0, 0.03, -2.8), Vector3(5.8, 0.08, 0.7), Color(0.0, 0.06, 0.14), Color(0.0, 0.42, 1.0))
+	elif palette == "bone":
+		for i in range(7):
+			_create_box("archive rib shelf", Vector3(12.0 + i * 9.0, 2.1, -3.2), Vector3(2.2, 3.4, 0.45), Color(0.16, 0.14, 0.13), Color(0.18, 0.12, 0.26))
+	elif palette == "violet":
+		for i in range(4):
+			_create_box("starfall crater shard", Vector3(18.0 + i * 13.0, 1.15, -2.6 + float(i % 2)), Vector3(0.6, 2.3, 0.6), Color(0.18, 0.08, 0.3), Color(0.9, 0.18, 1.0)).rotation_degrees.z = 25
+	elif palette == "moon":
+		_create_box("moon throne silhouette", Vector3(length - 8.0, 3.0, 3.25), Vector3(4.2, 6.0, 0.7), Color(0.03, 0.025, 0.055), Color(0.7, 0.16, 1.0))
+	else:
+		_create_box("distant keep banner", Vector3(length * 0.52, 3.0, -3.45), Vector3(0.55, 3.5, 0.1), Color(0.1, 0.0, 0.18), Color(0.48, 0.08, 0.8))
 
 func _set_message(text: String) -> void:
 	hud_message.text = text

@@ -4,6 +4,7 @@ signal seals_changed(total: int)
 signal health_changed(current: int, maximum: int)
 signal message_changed(text: String)
 signal lore_changed(total: int)
+signal relics_changed(total: int)
 
 const SAVE_PATH := "user://shrouded_keep_save.json"
 
@@ -13,6 +14,7 @@ var health := 6
 var max_health := 6
 var defeated_bosses: Array[String] = []
 var discovered_lore: Array[String] = []
+var relics: Array[String] = []
 var checkpoint_position := Vector3.ZERO
 
 func reset_run() -> void:
@@ -21,8 +23,10 @@ func reset_run() -> void:
 	health = max_health
 	defeated_bosses.clear()
 	discovered_lore.clear()
+	relics.clear()
 	checkpoint_position = Vector3.ZERO
 	seals_changed.emit(seals)
+	relics_changed.emit(relics.size())
 	health_changed.emit(health, max_health)
 	message_changed.emit("The Shrouded Keep waits beyond the blue ravine.")
 
@@ -38,6 +42,19 @@ func add_lore(lore_id: String, text: String) -> void:
 	discovered_lore.append(lore_id)
 	lore_changed.emit(discovered_lore.size())
 	message_changed.emit(text)
+
+func add_relic(relic_id: String, text: String) -> void:
+	if relics.has(relic_id):
+		message_changed.emit("The relic has already been claimed.")
+		return
+	relics.append(relic_id)
+	relics_changed.emit(relics.size())
+	message_changed.emit(text)
+
+func upgrade_health(amount: int) -> void:
+	max_health += amount
+	health = max_health
+	health_changed.emit(health, max_health)
 
 func damage_player(amount: int) -> void:
 	health = max(0, health - amount)
@@ -55,6 +72,7 @@ func save_game() -> void:
 		"max_health": max_health,
 		"defeated_bosses": defeated_bosses,
 		"discovered_lore": discovered_lore,
+		"relics": relics,
 		"checkpoint_position": [checkpoint_position.x, checkpoint_position.y, checkpoint_position.z],
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -77,9 +95,11 @@ func load_game() -> bool:
 	max_health = int(parsed.get("max_health", max_health))
 	defeated_bosses = parsed.get("defeated_bosses", [])
 	discovered_lore = parsed.get("discovered_lore", [])
+	relics = parsed.get("relics", [])
 	var raw_pos: Array = parsed.get("checkpoint_position", [0.0, 0.0, 0.0])
 	checkpoint_position = Vector3(float(raw_pos[0]), float(raw_pos[1]), float(raw_pos[2]))
 	seals_changed.emit(seals)
+	relics_changed.emit(relics.size())
 	health_changed.emit(health, max_health)
 	message_changed.emit("Checkpoint loaded.")
 	return true
