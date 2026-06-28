@@ -1,5 +1,11 @@
 __pycache__/
 *.pyc
 .venv/
-build/
 smoke-result.json
+godot/.godot/
+godot/export/windows/ShroudedKeepAdventure.exe
+godot/export/windows/*.console.exe
+godot/export/windows/*.pck
+legacy_pygame/build/
+tools/godot/
+preview-log.jsonl
