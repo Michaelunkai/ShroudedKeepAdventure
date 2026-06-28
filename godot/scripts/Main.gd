@@ -17,6 +17,8 @@ var checkpoint_area: Area3D
 var lore_areas: Array[Area3D] = []
 var enemies: Array[Node] = []
 var boss_enemy: Node = null
+var player_stamina := 100.0
+var player_max_stamina := 100.0
 
 var zones := [
 	{"name": "Blue Ravine", "goal": "Claim the ravine seal and cross the bridge.", "length": 62.0, "seal": 28.0, "gate": 55.0, "enemy_count": 3, "boss": false},
@@ -80,6 +82,7 @@ func _build_world() -> void:
 	player.set_script(PlayerController)
 	player.attack_performed.connect(_on_player_attack)
 	player.interacted.connect(_on_player_interact)
+	player.stamina_changed.connect(_on_player_stamina_changed)
 	add_child(player)
 
 func _build_hud() -> void:
@@ -135,9 +138,12 @@ func _build_zone_geometry(zone: Dictionary) -> void:
 	for x in range(0, int(zone.length), 8):
 		_create_box("left cliff", Vector3(x + 2, 2.2, -4.6), Vector3(3.5, 4.4 + sin(float(x)) * 1.4, 0.9), Color(0.02, 0.025, 0.06), Color(0.02, 0.08, 0.24))
 		_create_box("right wall", Vector3(x + 3, 1.65, 4.45), Vector3(4.0, 3.3, 0.8), Color(0.03, 0.035, 0.08), Color(0.03, 0.08, 0.22))
+		_create_box("individual stone courses", Vector3(x + 3, 3.42, 3.92), Vector3(3.2, 0.12, 0.18), Color(0.08, 0.1, 0.18), Color(0.02, 0.07, 0.18))
 	for tower_x in [14.0, zone.length * 0.48, zone.length - 10.0]:
 		_create_box("tower", Vector3(tower_x, 4.5, 4.85), Vector3(2.4, 9.0, 2.4), Color(0.015, 0.018, 0.04), Color(0.11, 0.07, 0.22))
 		_create_box("tower crown", Vector3(tower_x, 9.5, 4.85), Vector3(3.4, 1.0, 3.4), Color(0.015, 0.018, 0.04), Color(0.28, 0.06, 0.48))
+		_create_arch(tower_x - 1.8, 0.0)
+	_create_bridge(zone)
 	var moon := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 2.2
@@ -145,6 +151,14 @@ func _build_zone_geometry(zone: Dictionary) -> void:
 	moon.position = Vector3(zone.length * 0.72, 17.0, -15.0)
 	moon.material_override = _material(Color(1.0, 0.28, 0.95), Color(1.0, 0.12, 0.9), 2.3)
 	zone_root.add_child(moon)
+	for i in range(18):
+		var star := MeshInstance3D.new()
+		var star_mesh := SphereMesh.new()
+		star_mesh.radius = 0.055 + float(i % 3) * 0.03
+		star.mesh = star_mesh
+		star.position = Vector3(float(i) * 4.8 + 6.0, 13.0 + float(i % 5), -16.0 - float(i % 4))
+		star.material_override = _material(Color(0.9, 0.92, 1.0), Color(0.55, 0.7, 1.0), 2.0)
+		zone_root.add_child(star)
 
 func _spawn_interactables(zone: Dictionary) -> void:
 	if float(zone.seal) >= 0.0:
@@ -207,7 +221,7 @@ func _on_enemy_defeated(enemy: Node) -> void:
 	_set_message("A threat dissolves into violet ash.")
 
 func _update_hud(_current := 0, _maximum := 0) -> void:
-	hud_stats.text = "Health %d/%d   Seals %d   Lore %d/6" % [GameState.health, GameState.max_health, GameState.seals, GameState.discovered_lore.size()]
+	hud_stats.text = "Health %d/%d   Stamina %d/%d   Seals %d   Lore %d/6" % [GameState.health, GameState.max_health, int(player_stamina), int(player_max_stamina), GameState.seals, GameState.discovered_lore.size()]
 	if is_instance_valid(boss_enemy):
 		boss_label.text = "%s   HP %d/%d" % [boss_enemy.display_name, boss_enemy.health, boss_enemy.max_health]
 	else:
@@ -218,6 +232,29 @@ func _on_seals_changed(_total: int) -> void:
 
 func _on_lore_changed(_total: int) -> void:
 	_update_hud(GameState.health, GameState.max_health)
+
+func _on_player_stamina_changed(current: float, maximum: float) -> void:
+	player_stamina = current
+	player_max_stamina = maximum
+	_update_hud(GameState.health, GameState.max_health)
+
+func _create_arch(x: float, z: float) -> void:
+	_create_box("ruined arch left pillar", Vector3(x, 1.35, z), Vector3(0.38, 2.7, 0.5), Color(0.025, 0.03, 0.07), Color(0.03, 0.08, 0.25))
+	_create_box("ruined arch right pillar", Vector3(x + 2.2, 1.35, z), Vector3(0.38, 2.7, 0.5), Color(0.025, 0.03, 0.07), Color(0.03, 0.08, 0.25))
+	_create_box("ruined arch lintel", Vector3(x + 1.1, 2.72, z), Vector3(2.55, 0.42, 0.5), Color(0.025, 0.03, 0.07), Color(0.09, 0.06, 0.22))
+	_create_box("broken arch tooth", Vector3(x + 0.58, 3.08, z), Vector3(0.42, 0.48, 0.5), Color(0.025, 0.03, 0.07), Color(0.09, 0.06, 0.22))
+	_create_box("broken arch tooth", Vector3(x + 1.62, 3.03, z), Vector3(0.36, 0.42, 0.5), Color(0.025, 0.03, 0.07), Color(0.09, 0.06, 0.22))
+
+func _create_bridge(zone: Dictionary) -> void:
+	var start_x := float(zone.length) * 0.22
+	var bridge_length := float(zone.length) * 0.18
+	_create_box("ancient bridge deck", Vector3(start_x + bridge_length * 0.5, 0.12, 0), Vector3(bridge_length, 0.24, 2.25), Color(0.035, 0.04, 0.08), Color(0.02, 0.12, 0.36))
+	for i in range(5):
+		var rail_x := start_x + float(i) * bridge_length / 4.0
+		_create_box("bridge post left", Vector3(rail_x, 0.9, -1.35), Vector3(0.22, 1.35, 0.22), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
+		_create_box("bridge post right", Vector3(rail_x, 0.9, 1.35), Vector3(0.22, 1.35, 0.22), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
+	_create_box("left bridge rail", Vector3(start_x + bridge_length * 0.5, 1.45, -1.35), Vector3(bridge_length, 0.14, 0.14), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
+	_create_box("right bridge rail", Vector3(start_x + bridge_length * 0.5, 1.45, 1.35), Vector3(bridge_length, 0.14, 0.14), Color(0.02, 0.025, 0.055), Color(0.02, 0.1, 0.32))
 
 func _set_message(text: String) -> void:
 	hud_message.text = text
