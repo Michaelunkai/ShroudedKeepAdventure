@@ -8,11 +8,15 @@ var camera: Camera3D
 var hud_title: Label
 var hud_stats: Label
 var hud_message: Label
+var hud_controls: Label
+var boss_label: Label
 var zone_root: Node3D
 var gate_area: Area3D
 var seal_area: Area3D
 var checkpoint_area: Area3D
+var lore_areas: Array[Area3D] = []
 var enemies: Array[Node] = []
+var boss_enemy: Node = null
 
 var zones := [
 	{"name": "Blue Ravine", "goal": "Claim the ravine seal and cross the bridge.", "length": 62.0, "seal": 28.0, "gate": 55.0, "enemy_count": 3, "boss": false},
@@ -29,6 +33,7 @@ func _ready() -> void:
 	GameState.message_changed.connect(_set_message)
 	GameState.health_changed.connect(_update_hud)
 	GameState.seals_changed.connect(_on_seals_changed)
+	GameState.lore_changed.connect(_on_lore_changed)
 	GameState.reset_run()
 	_load_zone(0)
 
@@ -89,18 +94,31 @@ func _build_hud() -> void:
 	hud_stats.position = Vector2(980, 22)
 	hud_stats.add_theme_font_size_override("font_size", 20)
 	canvas.add_child(hud_stats)
+	boss_label = Label.new()
+	boss_label.position = Vector2(420, 92)
+	boss_label.size = Vector2(520, 36)
+	boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_label.add_theme_font_size_override("font_size", 20)
+	canvas.add_child(boss_label)
 	hud_message = Label.new()
 	hud_message.position = Vector2(44, 642)
 	hud_message.size = Vector2(1180, 52)
 	hud_message.add_theme_font_size_override("font_size", 22)
 	hud_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	canvas.add_child(hud_message)
+	hud_controls = Label.new()
+	hud_controls.position = Vector2(34, 94)
+	hud_controls.add_theme_font_size_override("font_size", 16)
+	hud_controls.text = "A/D move  W/S lane  J attack  K dodge  E interact  Esc pause"
+	canvas.add_child(hud_controls)
 
 func _load_zone(index: int) -> void:
 	GameState.zone_index = clampi(index, 0, zones.size() - 1)
 	for child in zone_root.get_children():
 		child.queue_free()
 	enemies.clear()
+	lore_areas.clear()
+	boss_enemy = null
 	var zone = zones[GameState.zone_index]
 	hud_title.text = "%s - %s" % [zone.name, zone.goal]
 	player.global_position = Vector3(2, 0, 0)
@@ -133,6 +151,10 @@ func _spawn_interactables(zone: Dictionary) -> void:
 		seal_area = _create_trigger("MoonSeal", Vector3(float(zone.seal), 0.8, -1.8), Vector3(1.2, 1.6, 1.2), Color(0.95, 0.18, 1.0), Color(1.0, 0.1, 0.9), 2.5)
 	gate_area = _create_trigger("MoonGate", Vector3(float(zone.gate), 1.5, 0.0), Vector3(1.5, 3.0, 5.0), Color(0.2, 0.08, 0.34), Color(0.8, 0.12, 1.0), 1.2)
 	checkpoint_area = _create_trigger("Checkpoint", Vector3(7.0, 0.55, 2.3), Vector3(1.1, 1.1, 1.1), Color(0.1, 0.42, 1.0), Color(0.0, 0.44, 1.0), 1.4)
+	var lore := _create_trigger("LoreStone", Vector3(float(zone.length) * 0.62, 0.7, 2.55), Vector3(1.0, 1.4, 0.55), Color(0.05, 0.04, 0.11), Color(0.28, 0.14, 0.8), 0.9)
+	lore.set_meta("lore_id", "%s_lore" % zone.name.to_snake_case())
+	lore.set_meta("lore_text", "Lore found: %s remembers a knight who entered before you." % zone.name)
+	lore_areas.append(lore)
 
 func _spawn_enemies(zone: Dictionary) -> void:
 	var count := int(zone.enemy_count)
@@ -154,6 +176,7 @@ func _spawn_enemies(zone: Dictionary) -> void:
 		boss.defeated.connect(_on_enemy_defeated)
 		zone_root.add_child(boss)
 		enemies.append(boss)
+		boss_enemy = boss
 
 func _on_player_attack(origin: Vector3, radius: float, damage: int) -> void:
 	_create_flash(origin)
@@ -168,6 +191,9 @@ func _on_player_interact(origin: Vector3) -> void:
 	if is_instance_valid(checkpoint_area) and origin.distance_to(checkpoint_area.global_position) < 2.1:
 		GameState.checkpoint_position = player.global_position
 		GameState.save_game()
+	for lore in lore_areas:
+		if is_instance_valid(lore) and origin.distance_to(lore.global_position) < 2.0:
+			GameState.add_lore(str(lore.get_meta("lore_id")), str(lore.get_meta("lore_text")))
 	if is_instance_valid(gate_area) and origin.distance_to(gate_area.global_position) < 3.0:
 		if GameState.zone_index < zones.size() - 1:
 			_load_zone(GameState.zone_index + 1)
@@ -176,12 +202,21 @@ func _on_player_interact(origin: Vector3) -> void:
 
 func _on_enemy_defeated(enemy: Node) -> void:
 	enemies.erase(enemy)
+	if enemy == boss_enemy:
+		boss_enemy = null
 	_set_message("A threat dissolves into violet ash.")
 
 func _update_hud(_current := 0, _maximum := 0) -> void:
-	hud_stats.text = "Health %d/%d   Seals %d" % [GameState.health, GameState.max_health, GameState.seals]
+	hud_stats.text = "Health %d/%d   Seals %d   Lore %d/6" % [GameState.health, GameState.max_health, GameState.seals, GameState.discovered_lore.size()]
+	if is_instance_valid(boss_enemy):
+		boss_label.text = "%s   HP %d/%d" % [boss_enemy.display_name, boss_enemy.health, boss_enemy.max_health]
+	else:
+		boss_label.text = ""
 
 func _on_seals_changed(_total: int) -> void:
+	_update_hud(GameState.health, GameState.max_health)
+
+func _on_lore_changed(_total: int) -> void:
 	_update_hud(GameState.health, GameState.max_health)
 
 func _set_message(text: String) -> void:

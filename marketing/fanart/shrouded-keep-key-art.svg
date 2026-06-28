@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#060017"/>
+      <stop offset=".45" stop-color="#4010a8"/>
+      <stop offset=".8" stop-color="#05081e"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffd1ff"/>
+      <stop offset=".58" stop-color="#f044ff"/>
+      <stop offset="1" stop-color="#7b168f"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <g fill="#f5eaff" opacity=".9">
+    <circle cx="240" cy="130" r="3"/><circle cx="410" cy="92" r="2"/><circle cx="690" cy="170" r="3"/>
+    <circle cx="1010" cy="88" r="2"/><circle cx="1230" cy="210" r="3"/><circle cx="1540" cy="120" r="2"/>
+    <circle cx="1740" cy="260" r="4"/><circle cx="1460" cy="360" r="2"/><circle cx="820" cy="280" r="2"/>
+  </g>
+  <circle cx="610" cy="320" r="70" fill="url(#moon)" filter="url(#glow)"/>
+  <path d="M0 1080h1920V690c-180 40-295 22-440-30-215-76-386 20-565 70-205 58-430-105-610-28C180 756 80 800 0 772z" fill="#020514"/>
+  <path d="M720 900h610V510l-80-72-60 94-50-220-82 230-78-130-64 146-96 84z" fill="#050819"/>
+  <path d="M840 520h120v380H840zM1080 460h120v440h-120zM1260 590h115v310h-115z" fill="#050819"/>
+  <path d="M815 520l85-100 85 100zM1050 460l92-118 92 118zM1235 590l82-92 82 92z" fill="#050819"/>
+  <path d="M180 1080c180-220 320-198 510-154 186 43 320-8 462-102 160-106 315-114 588-18v274z" fill="#0b44d4" opacity=".46" filter="url(#glow)"/>
+  <path d="M0 1080h1920v-150c-244 68-443 70-620 24-280-74-506-8-720 54-235 68-393 22-580-48z" fill="#05102c"/>
+  <text x="960" y="920" text-anchor="middle" font-family="Georgia, serif" font-size="96" fill="#f4ecff" letter-spacing="6">SHROUDED KEEP</text>
+  <text x="960" y="990" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#9fc8ff">A moonlit action-adventure through violet ruins</text>
+</svg>

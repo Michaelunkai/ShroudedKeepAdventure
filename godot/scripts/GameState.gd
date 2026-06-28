@@ -3,6 +3,7 @@ extends Node
 signal seals_changed(total: int)
 signal health_changed(current: int, maximum: int)
 signal message_changed(text: String)
+signal lore_changed(total: int)
 
 const SAVE_PATH := "user://shrouded_keep_save.json"
 
@@ -29,6 +30,14 @@ func add_seal() -> void:
 	seals += 1
 	seals_changed.emit(seals)
 	message_changed.emit("A moon seal burns cold in your hand.")
+
+func add_lore(lore_id: String, text: String) -> void:
+	if discovered_lore.has(lore_id):
+		message_changed.emit("The inscription is already burned into memory.")
+		return
+	discovered_lore.append(lore_id)
+	lore_changed.emit(discovered_lore.size())
+	message_changed.emit(text)
 
 func damage_player(amount: int) -> void:
 	health = max(0, health - amount)
